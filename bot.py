@@ -106,11 +106,29 @@ def calc_cal(u: dict):
 
 
 async def off_search(name: str):
+    local = {
+        "banana": ("Banana", 89),
+        "apple": ("Apple", 52),
+        "bread": ("Bread", 265),
+        "milk": ("Milk", 42),
+        "rice": ("Rice", 130),
+        "egg": ("Egg", 155),
+        "tomato": ("Tomato", 18),
+        "chicken": ("Chicken breast", 165),
+    }
+
+    key = (name or "").lower().strip()
+
+    # быстрый локальный фолбэк (чтобы точно работало даже без API)
+    if key in local:
+        return local[key]
+
     url = "https://world.openfoodfacts.org/cgi/search.pl"
     params = {"action": "process", "search_terms": name, "json": "true", "page_size": 5}
+
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(url, params=params, timeout=12) as r:
+            async with session.get(url, params=params, timeout=10) as r:
                 if r.status != 200:
                     return None
                 data = await r.json()
@@ -118,6 +136,7 @@ async def off_search(name: str):
                 if not prods:
                     return None
 
+                # стараемся найти продукт с kcal/100g
                 for p in prods:
                     n = (p.get("product_name") or "").strip()
                     kcal = (p.get("nutriments", {}) or {}).get("energy-kcal_100g")
@@ -127,8 +146,10 @@ async def off_search(name: str):
                         except Exception:
                             pass
 
-                first = prods[0]
-                return (first.get("product_name") or name), 0.0
+                p = prods[0]
+                n = (p.get("product_name") or name).strip()
+                kcal = (p.get("nutriments", {}) or {}).get("energy-kcal_100g", 0)
+                return n, float(kcal)
     except Exception:
         return None
 
@@ -154,7 +175,7 @@ async def start(m: Message):
         "Привет! Команды:\n"
         "/set_profile\n"
         "/log_water 300\n"
-        "/log_food банан\n"
+        "/log_food banana\n"
         "/log_workout бег 30\n"
         "/check_progress\n"
         "/reset_day"
@@ -305,12 +326,12 @@ async def log_food(m: Message, state: FSMContext):
 
     parts = m.text.split(maxsplit=1)
     if len(parts) < 2:
-        return await m.answer("Пример: /log_food банан")
+        return await m.answer("Пример: /log_food banana")
 
     query = parts[1].strip()
     res = await off_search(query)
     if not res:
-        return await m.answer("Не нашёл продукт, попробуй другое название (можно на англ.)")
+        return await m.answer("Не нашёл продукт")
 
     name, kcal100 = res
     food_wait[m.from_user.id] = {"name": name, "kcal100": kcal100}
