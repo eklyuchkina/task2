@@ -3,7 +3,8 @@ import logging
 import os
 
 import aiohttp
-from aiogram import Bot, Dispatcher, F
+from aiohttp import web
+from aiogram import Bot, Dispatcher
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -23,8 +24,8 @@ logging.basicConfig(level=logging.INFO)
 bot = Bot(TOKEN)
 dp = Dispatcher()
 
-users = {}          # user_id -> dict(profile + progress)
-food_wait = {}      # user_id -> {"name": str, "kcal100": float}
+users = {}
+food_wait = {}
 
 
 class Profile(StatesGroup):
@@ -411,7 +412,24 @@ async def reset_day(m: Message):
     await m.answer("Сбросил записи за день")
 
 
+async def health(request):
+    return web.Response(text="ok")
+
+
+async def run_web():
+    app = web.Application()
+    app.router.add_get("/", health)
+
+    runner = web.AppRunner(app)
+    await runner.setup()
+
+    port = int(os.getenv("PORT", "10000"))
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+
+
 async def main():
+    await run_web()
     await dp.start_polling(bot)
 
 
