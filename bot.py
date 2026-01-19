@@ -108,20 +108,24 @@ def calc_cal(u: dict):
 async def off_search(name: str):
     local = {
         "banana": ("Banana", 89),
+        "банан": ("Banana", 89),
         "apple": ("Apple", 52),
+        "яблоко": ("Apple", 52),
         "bread": ("Bread", 265),
+        "хлеб": ("Bread", 265),
         "milk": ("Milk", 42),
+        "молоко": ("Milk", 42),
         "rice": ("Rice", 130),
+        "рис": ("Rice", 130),
         "egg": ("Egg", 155),
-        "tomato": ("Tomato", 18),
-        "chicken": ("Chicken breast", 165),
+        "яйцо": ("Egg", 155),
     }
 
-    key = (name or "").lower().strip()
+    s = (name or "").lower().strip()
+    s = s.split()[0] if s else ""  # берём только первое слово
 
-    # быстрый локальный фолбэк (чтобы точно работало даже без API)
-    if key in local:
-        return local[key]
+    if s in local:
+        return local[s]
 
     url = "https://world.openfoodfacts.org/cgi/search.pl"
     params = {"action": "process", "search_terms": name, "json": "true", "page_size": 5}
@@ -136,7 +140,6 @@ async def off_search(name: str):
                 if not prods:
                     return None
 
-                # стараемся найти продукт с kcal/100g
                 for p in prods:
                     n = (p.get("product_name") or "").strip()
                     kcal = (p.get("nutriments", {}) or {}).get("energy-kcal_100g")
@@ -178,7 +181,8 @@ async def start(m: Message):
         "/log_food banana\n"
         "/log_workout бег 30\n"
         "/check_progress\n"
-        "/reset_day"
+        "/reset_day\n\n"
+        "Важно: /log_food — лучше одним словом, например: /log_food banana"
     )
 
 
@@ -328,10 +332,12 @@ async def log_food(m: Message, state: FSMContext):
     if len(parts) < 2:
         return await m.answer("Пример: /log_food banana")
 
-    query = parts[1].strip()
+    query_raw = parts[1].strip()
+    query = query_raw.split()[0]  # только первое слово после команды
+
     res = await off_search(query)
     if not res:
-        return await m.answer("Не нашёл продукт")
+        return await m.answer("Не нашёл продукт. Попробуй /log_food apple или /log_food milk")
 
     name, kcal100 = res
     food_wait[m.from_user.id] = {"name": name, "kcal100": kcal100}
